@@ -6,6 +6,88 @@
 
 원본: [navilera/NavilIMEforMac](https://github.com/navilera/NavilIMEforMac)
 
+## 2026-08-14 - 한/영 전환을 입력기 내부 모드로 (특수키가 영문에서도 살아있게)
+
+### 문제
+NavilIME는 `tsInputMethodCharacterRepertoireKey`가 `Hang` 하나뿐인 **한글 전용 입력
+소스**였다. 그래서 시스템 한/영 전환(Caps Lock)을 쓰면 입력 소스 자체가 ABC로 바뀌고,
+`deactivateServer` 이후 키 이벤트가 NavilIME에 오지 않았다. 결과적으로 영문 상태에서는
+특수키(`Cmd+\→₩`, `Shift+ESC→~`, `Cmd+ESC→\``)가 전부 동작하지 않았다.
+
+### 해결 — 영문 모드를 입력기가 직접 제공
+- `Info.plist`에 `ComponentInputModeDict`로 **입력 모드 두 개**를 선언한다.
+  - `com.navilera.inputmethod.NavilIME.Hangul` (한, `smKorean`)
+  - `com.navilera.inputmethod.NavilIME.Roman` (A, `smRoman`)
+
+  둘 다 `tsInputModeIsVisibleKey`가 true라 입력 소스 목록에 각각 뜨고, 입력 소스
+  전환 단축키(Cmd+Space 등)가 이 둘을 오간다. **두 모드 모두 같은 앱이 담당하므로
+  영문 상태에서도 입력 소스가 여전히 NavilIME이고 `handle()`이 계속 호출된다.**
+  ABC로 넘어가면 죽던 것과 대비된다.
+- `tsInputMethodCharacterRepertoireKey`에 `Latn` 추가. 영문 모드를 직접 제공하므로
+  필요하다.
+
+앱을 두 벌 만들어 등록하는 방법도 같은 결과를 내지만, 번들 2개 서명·설치와
+IMKServer 프로세스 2개, 설정/특수키 테이블의 프로세스 간 동기화 비용이 붙는다.
+한 앱에 모드 두 개면 동일한 UX를 한 프로세스로 얻는다.
+- `NavilIMEInputController.setValue(_:forTag:client:)` 오버라이드. 시스템이
+  `kTextServiceInputModePropertyTag`로 모드 변경을 통지하면 조합 중이던 글자를 확정하고
+  `HangulMenu.self_eng_mode`를 맞춘다.
+- `set_eng_mode(_:client:notify_system:)` 추가. 자체 단축키(오른쪽 Command 등)로
+  전환할 때는 `IMKTextInput.selectMode(_:)`로 시스템에도 알려 **메뉴바 표시등이
+  한 ↔ A 로 바뀌게** 한다. 기존에는 내부 영문 모드여도 표시등이 계속 한글이었다.
+- `Hangul.ToggleSuspend()` 제거. 모드를 뒤집는 경로가 둘이 되면 시스템 입력 모드와
+  어긋나므로 `set_eng_mode` 하나로 일원화했다.
+- `ko.lproj/InfoPlist.strings`, `en.lproj/InfoPlist.strings` 추가. 입력 소스 목록에
+  표시할 모드 이름을 준다. 이게 없으면 시스템 설정 > 키보드 > 입력 소스 목록에
+  `com.navilera.inputmethod.NavilIME.Hangul` 이라는 ID 문자열이 그대로 노출된다.
+  키는 모드 ID와 정확히 일치해야 한다.
+  (한국어 "나빌입력기" / "나빌입력기 (영문)", 영어 "NavilIME" / "NavilIME (Roman)")
+
+### 영문 모드에서는 키를 앱에 그대로 넘김
+영문 모드에서 자체 ASCII 테이블(`key_code`)로 글자를 만들어 `insertText`로 넣던 것을
+`return false`로 바꿔 앱이 직접 처리하게 했다. `insertText` 방식은 IMK 지원이 얕은
+앱(터미널/TUI)에서 입력이 통째로 씹혔다. 앱에 넘기면 시스템 키보드 레이아웃이 글자를
+만들어 주므로 US 배열 외의 자판, 죽은 키, 실행 취소 단위, 자동완성도 함께 정상화된다.
+특수키는 이 분기보다 앞에서 처리하므로 영향이 없다.
+
+### SpecialKeyTap 되살리기 — 터미널/TUI 대응
+IMK 경로는 **앱이 키 이벤트를 입력 컨텍스트로 넘겨줄 때만** 동작한다. 실측 결과:
+
+| 앱 | Shift+ESC → ~ | Cmd+ESC → ` | Cmd+\ → ₩ |
+|---|---|---|---|
+| Notes | O | O | O |
+| Terminal | O | X | X |
+| Claude CLI | X (바로 ESC) | X | X |
+
+Terminal은 Command 조합을 메뉴 단축키로 소비해 `keyDown:`까지 넘기지 않고, TUI는
+ESC를 취소 키로 직접 읽는다. 앱보다 앞단인 `CGEventTap`으로만 메울 수 있다.
+
+- **게이트 제거.** `currentInputSourceIsNavil()`은 "NavilIME가 활성이면 IMK가
+  처리하니 비켜라"는 조건이었는데, 영문 모드까지 NavilIME가 담당하게 되면서 항상
+  참이 되어 탭이 한 번도 동작하지 않았다. 조건을 없애고 항상 치환한다.
+- **keycode 바꿔치기.** 유니코드 문자열만 갈아끼우고 keycode를 ESC(0x35)로 두면
+  keycode/raw 바이트로 판단하는 앱에서는 여전히 ESC로 읽힌다. 실제로 그 글자를 내는
+  키로 바꾼다 — `Shift+ESC → 0x32+Shift`, `Cmd+ESC → 0x32`. ₩는 US 배열에 대응
+  키가 없어 유니코드 치환을 유지한다.
+- 이중 처리는 없다. 탭이 keycode와 수식키를 바꾸므로 뒤이어 도달하는 IMK 경로의
+  `special_keys` 조건에 걸리지 않는다.
+
+손쉬운 사용 권한이 없으면 탭이 뜨지 않고 IMK 경로만 남는다(Notes류에서는 그대로 동작).
+
+### Caps Lock 전환은 넣지 않음
+`TICapsLockLanguageSwitchCapable`을 쓰면 Caps Lock이 입력기 내부 한/영을 토글하지만,
+입력 소스 전환 단축키로 모드를 오가는 이 구성과 메커니즘이 겹쳐 혼란스러워진다.
+Caps Lock은 일반 대문자 고정으로 남겨둔다.
+
+영문 상태에서도 입력 소스는 여전히 NavilIME이므로 `handle()`이 계속 호출되고,
+`special_keys` 처리가 그대로 살아있다. 손쉬운 사용 권한도 `CGEventTap`도 필요 없다.
+
+### 적용 시 주의
+입력 모드 선언이 생기면서 선택되는 입력 소스 ID가
+`com.navilera.inputmethod.NavilIME` → `com.navilera.inputmethod.NavilIME.Hangul`로
+바뀐다. 설치 후 **시스템 설정 > 키보드 > 입력 소스에서 NavilIME를 지웠다가 다시 추가**하고
+로그아웃/로그인해야 새 모드 구성이 반영된다.
+
 ## 2026-05-27 - 전역 특수키 입력 및 개인 빌드 서명
 
 ### 특수키 조합을 다른 입력기 상태에서도 동작 (전역)

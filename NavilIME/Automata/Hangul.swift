@@ -180,15 +180,9 @@ class Hangul {
         self.automata = nil
     }
     
-    func ToggleSuspend() {
-        HangulMenu.shared.self_eng_mode = !HangulMenu.shared.self_eng_mode
-        if HangulMenu.shared.self_eng_mode {
-            PrintLog.shared.Log(log: "영어")
-        } else {
-            PrintLog.shared.Log(log: "한글")
-        }
-    }
-    
+    // 영문 모드 전환은 NavilIMEInputController.set_eng_mode가 전담한다.
+    // 시스템 입력 모드(메뉴바 한/A 표시)와 같이 맞춰야 하므로 여기서 직접 뒤집지 않는다.
+
     static let keyboard002 = Keyboard002()
 
     func Start() {

@@ -6,12 +6,19 @@
 //
 
 import InputMethodKit
+import Carbon
 
 @objc(NavilIMEInputController)
 open class NavilIMEInputController: IMKInputController {
     let key_code:String =       "asdfhgzxcv\tbqweryt123465=97-80]ou[ip\tlj'k;\\,/nm.\t `"
     let shift_key_code:String = "ASDFHGZXCV\tBQWERYT!@#$^%+(&_*)}OU{IP\tLJ\"K:|<?NM>\t ~"
-    
+
+    // Info.plist의 ComponentInputModeDict에 선언한 입력 모드 ID.
+    // 두 모드 모두 이 앱이 담당하므로, 영문으로 바꿔도 입력 소스는 여전히 NavilIME이고
+    // handle()이 계속 호출된다. (영문에서도 특수키가 안 죽는 이유)
+    static let hangul_mode = "com.navilera.inputmethod.NavilIME.Hangul"
+    static let roman_mode  = "com.navilera.inputmethod.NavilIME.Roman"
+
     var hangul:Hangul?
 
     // 특수 키 조합 테이블: (keycode, modifier, 출력 문자)
@@ -42,6 +49,40 @@ open class NavilIMEInputController: IMKInputController {
         super.deactivateServer(sender)
     }
     
+    /*
+     시스템이 입력 모드를 바꿀 때(Caps Lock 한/영 전환, 메뉴바에서 모드 선택 등) 호출된다.
+     Info.plist의 TICapsLockLanguageSwitchCapable 덕분에 한/영 전환이 ABC 입력 소스로
+     넘어가지 않고 여기로 들어온다. 즉 영문 상태에서도 입력 소스는 여전히 NavilIME이고
+     handle()이 계속 호출되므로, special_keys(₩, ~, `)가 영문에서도 살아있다.
+     */
+    override open func setValue(_ value: Any!, forTag tag: Int, client sender: Any!) {
+        if tag == Int(kTextServiceInputModePropertyTag), let mode = value as? String {
+            PrintLog.shared.Log(log: "InputMode -> \(mode)")
+
+            self.ensureHangulReady()
+            // 모드가 바뀌기 전에 조합 중이던 글자를 확정한다.
+            self.commitComposition(sender)
+
+            // 시스템이 이미 모드를 바꾼 뒤 통지한 것이므로, selectMode로 되알릴 필요가 없다.
+            self.set_eng_mode(mode.hasSuffix(".Roman"), client: sender, notify_system: false)
+        }
+        super.setValue(value, forTag: tag, client: sender)
+    }
+
+    // 영문/한글 모드를 바꾼다.
+    // notify_system이 true면 시스템에도 알려 메뉴바 표시등(한 ↔ A)을 맞춘다.
+    // 자체 단축키(오른쪽 Command 등)로 바꿀 때가 그 경우다.
+    func set_eng_mode(_ eng:Bool, client:Any!, notify_system:Bool) {
+        if HangulMenu.shared.self_eng_mode != eng {
+            HangulMenu.shared.self_eng_mode = eng
+            PrintLog.shared.Log(log: eng ? "영어" : "한글")
+        }
+
+        guard notify_system, let disp = client as? IMKTextInput else { return }
+        disp.selectMode(eng ? NavilIMEInputController.roman_mode
+                            : NavilIMEInputController.hangul_mode)
+    }
+
     // hangul이 없거나 automata가 nil이면 복구한다.
     // macOS가 activateServer 없이 handle을 호출하는 경우 대비.
     func ensureHangulReady() {
@@ -57,8 +98,9 @@ open class NavilIMEInputController: IMKInputController {
         self.ensureHangulReady()
 
         if OptHandler.shared.Is_han_eng_changed(keycode: event.keyCode, modi: event.modifierFlags) {
-            self.hangul?.ToggleSuspend()
+            // 조합 중이던 글자를 먼저 확정한 뒤 모드를 바꾼다.
             self.commitComposition(sender)
+            self.set_eng_mode(!HangulMenu.shared.self_eng_mode, client: sender, notify_system: true)
             return true
         }
 
@@ -90,6 +132,20 @@ open class NavilIMEInputController: IMKInputController {
                 self.update_display(client: client, additional: sk.2)
                 return true
             }
+        }
+
+        // 영문 모드에서는 키를 먹지 않고 앱으로 그대로 넘긴다.
+        //
+        // 예전에는 자체 ASCII 테이블(key_code)로 글자를 만들어 insertText로 넣었는데,
+        // 그러면 IMK 지원이 얕은 앱(터미널/TUI 등)에서 입력이 씹힌다. 앱에 넘기면
+        // 시스템 키보드 레이아웃이 글자를 만들어 주므로 US 배열 외의 자판, 죽은 키,
+        // 실행 취소 단위, 자동완성도 함께 정상 동작한다.
+        //
+        // 특수키(₩, ~, `)는 위에서 이미 처리했으므로 여기 도달하지 않는다.
+        if HangulMenu.shared.self_eng_mode {
+            hangul.Flush()
+            self.update_display(client: client)
+            return false
         }
 
         // 특정 패턴 입력은 한글로 변환하지 않는다.

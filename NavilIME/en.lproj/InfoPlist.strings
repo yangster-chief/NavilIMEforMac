@@ -1,0 +1,5 @@
+/* Name shown in System Settings > Keyboard > Input Sources.
+   The key must match the input mode ID declared in Info.plist's ComponentInputModeDict.
+   Without this entry the raw mode ID is shown in the list. */
+"com.navilera.inputmethod.NavilIME.Hangul" = "NavilIME";
+"com.navilera.inputmethod.NavilIME.Roman" = "NavilIME (Roman)";

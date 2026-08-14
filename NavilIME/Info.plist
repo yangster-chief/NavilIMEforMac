@@ -6,13 +6,88 @@
 	<string>NavilIME</string>
 	<key>InputMethodServerControllerClass</key>
 	<string>NavilIMEInputController</string>
+	<!-- 한글(Hang)과 라틴(Latn)을 모두 담당한다고 선언한다. 영문 모드를 직접 제공하므로
+	     Latn이 필요하다. -->
 	<key>tsInputMethodCharacterRepertoireKey</key>
 	<array>
 		<string>Hang</string>
+		<string>Latn</string>
 	</array>
 	<key>tsInputMethodIconFileKey</key>
 	<string>navilime.png</string>
 	<key>LSBackgroundOnly</key>
 	<string>1</string>
+
+	<key>TISInputSourceID</key>
+	<string>com.navilera.inputmethod.NavilIME</string>
+	<key>TISIntendedLanguage</key>
+	<string>ko</string>
+
+	<!-- 입력 모드를 한글/영문 두 개로 선언한다. 둘 다 tsInputModeIsVisibleKey가 true라
+	     입력 소스 목록에 각각 항목으로 뜨고, 입력 소스 전환 단축키(Cmd+Space 등)가
+	     이 둘을 오간다.
+
+	     핵심: 두 모드 모두 이 앱(NavilIME)이 담당하므로, 영문 상태에서도 입력 소스가
+	     여전히 NavilIME이고 handle()이 계속 호출된다. 그래서 특수키(₩, ~, `)가
+	     영문에서도 죽지 않는다. ABC로 넘어가면 죽는 것과 대비된다.
+
+	     모드 전환은 NavilIMEInputController.setValue(_:forTag:client:)로 통지된다. -->
+	<key>ComponentInputModeDict</key>
+	<dict>
+		<key>tsInputModeListKey</key>
+		<dict>
+			<key>com.navilera.inputmethod.NavilIME.Hangul</key>
+			<dict>
+				<key>TISInputSourceID</key>
+				<string>com.navilera.inputmethod.NavilIME.Hangul</string>
+				<key>TISIntendedLanguage</key>
+				<string>ko</string>
+				<key>TISIconLabels</key>
+				<dict>
+					<key>Primary</key>
+					<string>한</string>
+				</dict>
+				<key>tsInputModeScriptKey</key>
+				<string>smKorean</string>
+				<key>tsInputModeIsVisibleKey</key>
+				<true/>
+				<key>tsInputModePrimaryInScriptKey</key>
+				<true/>
+				<key>tsInputModeMenuIconFileKey</key>
+				<string>navilime.png</string>
+				<key>tsInputModePaletteIconFileKey</key>
+				<string>navilime.png</string>
+			</dict>
+			<key>com.navilera.inputmethod.NavilIME.Roman</key>
+			<dict>
+				<key>TISInputSourceID</key>
+				<string>com.navilera.inputmethod.NavilIME.Roman</string>
+				<key>TISIntendedLanguage</key>
+				<string>en</string>
+				<key>TISIconLabels</key>
+				<dict>
+					<key>Primary</key>
+					<string>A</string>
+				</dict>
+				<key>tsInputModeScriptKey</key>
+				<string>smRoman</string>
+				<key>tsInputModeIsVisibleKey</key>
+				<true/>
+				<key>tsInputModePrimaryInScriptKey</key>
+				<false/>
+				<!-- 한글 모드와 아이콘이 같으면 메뉴에서 두 항목을 구분할 수 없다.
+				     영문 모드는 "A" 아이콘을 따로 쓴다. -->
+				<key>tsInputModeMenuIconFileKey</key>
+				<string>navilime_roman.png</string>
+				<key>tsInputModePaletteIconFileKey</key>
+				<string>navilime_roman.png</string>
+			</dict>
+		</dict>
+		<key>tsVisibleInputModeOrderedArrayKey</key>
+		<array>
+			<string>com.navilera.inputmethod.NavilIME.Hangul</string>
+			<string>com.navilera.inputmethod.NavilIME.Roman</string>
+		</array>
+	</dict>
 </dict>
 </plist>
