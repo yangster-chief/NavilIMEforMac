@@ -6,6 +6,52 @@
 
 원본: [navilera/NavilIMEforMac](https://github.com/navilera/NavilIMEforMac)
 
+## 2026-08-18 - 기본 영문 입력기(ABC) 제거, 트레이 메뉴/아이콘 수정
+
+### ABC를 입력 소스에서 뺄 수 있게
+영문 모드를 직접 제공하는데도 ABC를 목록에서 지울 수 없었다. macOS는 ASCII를
+담당하는 소스가 최소 하나 남아야 제거를 허용하는데, 영문 모드가 그 역할을
+주장하지 않았기 때문이다. 구름입력기([gureum/gureum](https://github.com/gureum/gureum)
+`OSX/Info.plist`)와 비교해 세 가지를 맞췄다.
+
+- 영문 모드 `tsInputModePrimaryInScriptKey`: `false` → `true`.
+  `smRoman` 스크립트의 주 입력원임을 선언한다. 이 키를 바꾼 뒤 TIS의
+  `kTISPropertyInputSourceIsASCIICapable`이 `n` → `Y`로 바뀌는 것을 확인했다.
+- 영문 모드 `KeyboardLayout` = `com.apple.keylayout.ABC`. 이 모드가 쓸 물리
+  배열을 시스템 리소스로 참조한다. 입력 소스 목록에서 ABC를 빼도 리소스 자체는
+  남아 있어 영문 입력이 계속 동작한다. 구름의 `qwerty` 모드와 같은 구조다.
+- `tsInputMethodCharacterRepertoireKey`: `Hang, Latn` → `Latn, Kore, Hang`.
+
+**plist만으로는 제거되지 않는다.** 마지막 Roman 레이아웃 하나는 지울 수 없게
+막혀 있어서, 일본어 – Romaji를 잠시 추가해 "마지막"이 아니게 만든 뒤 ABC를
+지우고 Romaji를 제거해야 한다. 구름입력기 사용자들이 쓰는 방법과 같다.
+
+> 미검증: `Kore` 레퍼토리와 `KeyboardLayout` 키가 실제로 필요한지는 따로
+> 확인하지 않았다. 구름 설정을 그대로 따라간 것이다.
+
+#### 접은 방법 — 번들 keylayout
+"입력기가 자기 키보드 레이아웃을 갖고 있지 않아 시스템이 ABC를 끌어다 쓴다"고
+보고, ABC를 `UCKeyTranslate`로 전수 추출해 `NavilIMERoman.keylayout`을 만들고
+`KLInfo_NavilIMERoman`으로 선언했다(6144건 일치 검증). **ABC는 그대로 남았다.**
+구름은 레이아웃을 번들하지 않고 시스템 배열을 참조할 뿐이다. 되돌렸다.
+
+### 트레이 메뉴에 "CFBundleName"이 그대로 노출
+지역화된 `InfoPlist.strings`를 추가하면서 입력 모드 ID 키만 넣었는데, macOS는
+이 파일이 있으면 **앱 이름도 여기서 찾는다.** `CFBundleName`이 없으니 키 이름이
+그대로 메뉴 머리글에 나왔다. `ko`/`en` 양쪽에 `CFBundleName`과
+`CFBundleDisplayName`을 추가했다.
+
+### 영문 모드 아이콘이 한글 아이콘보다 2배로 그려짐
+`navilime.png`는 36x36px를 18x18pt로 태그한 **Retina 2x 이미지(144dpi)**인데,
+생성한 `navilime_roman.png`는 72dpi라 픽셀 수가 같은데도 화면에서 정확히 2배
+크기로 그려졌다. 테두리가 굵어 보인 것도 같은 원인이다. 생성기
+(`Stuff/mkicon_roman.swift`)에서 세 가지를 맞췄다.
+
+- 출력 rep의 `size`를 18x18pt로 지정해 Retina 2x로 태그
+- `navilime.png`와 같은 2px 테두리 상자(행 2..33, 열 0..35). `NSImage.lockFocus()`
+  는 Retina 화면에서 2x 백킹을 잡아 72x72가 나오므로 `NSBitmapImageRep`에 직접 그린다
+- 획 두께 `.semibold` → `.medium` (중앙값 5px → 4px, 한글 아이콘과 동일)
+
 ## 2026-08-14 - 한/영 전환을 입력기 내부 모드로 (특수키가 영문에서도 살아있게)
 
 ### 문제
