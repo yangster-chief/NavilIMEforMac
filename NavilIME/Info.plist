@@ -10,8 +10,9 @@
 	     Latn이 필요하다. -->
 	<key>tsInputMethodCharacterRepertoireKey</key>
 	<array>
-		<string>Hang</string>
 		<string>Latn</string>
+		<string>Kore</string>
+		<string>Hang</string>
 	</array>
 	<key>tsInputMethodIconFileKey</key>
 	<string>navilime.png</string>
@@ -60,6 +61,10 @@
 			</dict>
 			<key>com.navilera.inputmethod.NavilIME.Roman</key>
 			<dict>
+				<!-- 이 모드가 쓸 물리 키보드 배열. 시스템 리소스를 참조할 뿐이라
+				     ABC 를 입력 소스 목록에서 빼도 계속 유효하다. -->
+				<key>KeyboardLayout</key>
+				<string>com.apple.keylayout.ABC</string>
 				<key>TISInputSourceID</key>
 				<string>com.navilera.inputmethod.NavilIME.Roman</string>
 				<key>TISIntendedLanguage</key>
@@ -73,8 +78,11 @@
 				<string>smRoman</string>
 				<key>tsInputModeIsVisibleKey</key>
 				<true/>
+				<!-- smRoman 스크립트의 주 입력원임을 선언한다. macOS 는 ASCII 를
+				     담당하는 소스가 최소 하나 남아야 ABC 제거를 허용하는데, false 면
+				     이 모드가 그 역할을 주장하지 않아 ABC 가 계속 고정된다. -->
 				<key>tsInputModePrimaryInScriptKey</key>
-				<false/>
+				<true/>
 				<!-- 한글 모드와 아이콘이 같으면 메뉴에서 두 항목을 구분할 수 없다.
 				     영문 모드는 "A" 아이콘을 따로 쓴다. -->
 				<key>tsInputModeMenuIconFileKey</key>
