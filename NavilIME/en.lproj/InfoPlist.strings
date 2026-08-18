@@ -1,3 +1,9 @@
+/* When a localized InfoPlist.strings exists, macOS resolves the app name from it
+   too. Omitting CFBundleName makes the tray menu header show the literal key
+   name "CFBundleName". */
+"CFBundleName" = "NavilIME";
+"CFBundleDisplayName" = "NavilIME";
+
 /* Name shown in System Settings > Keyboard > Input Sources.
    The key must match the input mode ID declared in Info.plist's ComponentInputModeDict.
    Without this entry the raw mode ID is shown in the list. */
